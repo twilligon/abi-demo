@@ -65,4 +65,51 @@ But if at the ABI boundary we convert every `Vec` to and from a `#[repr(C)] stru
 
 So like the yolo approach, we bet on "nice coincidences" which work the vast majority of the time. But unlike the yolo approach, the only cost to being wrong is (very slight!) performance rather than correctness.
 
-Stay tuned for macros that make these gymnastics easy.
+## Prior Art
+
+Crates like `abi_stable` and `stabby` solve this problem differently: they define ABI-stable replacements for standard library types (`RVec`, `RString`, `RBox`) and have you use those throughout your plugin interface.
+
+This works, but comes with friction:
+
+- **Type infection.** Your plugin API speaks `RVec`, but third-party libraries speak `Vec`. Someone has to convert, and it's you, at every call site. If a dependency returns `HashMap<K, V>` or some custom type, you're wrapping it manually or giving up.
+- **Complexity.** `stabby` maintains a global vtable registry that's leaked (valgrind will be upset), uses O(n) lookup, and broke on Rust 1.78 due to compiler changes. `abi_stable` is ~50k lines. Both require an allocator.
+- **Runtime checks.** They validate ABI compatibility at runtime through type reports and version hashes. More moving parts, more overhead, errors surface later.
+
+This crate takes a different approach: keep using normal Rust types, convert at the boundary, and rely on the optimizer to prove it's free. Plugin authors write `Vec`, not `RVec`. If they use a library that returns `Vec`, it just works—no wrapping needed.
+
+The version checking story is also simpler: exported symbols get mangled with the ABI crate version. Mismatch means the symbol doesn't exist. The linker tells you at load time, not a runtime check at first call.
+
+## Design Principles
+
+**Stay within stable Rust.** We could do more by transmuting fat pointers or peeking at vtable representations. We don't. If stable Rust provides no way to extract trait object metadata, we don't extract it. This crate should never break due to relying on unspecified compiler behavior.
+
+**Deconstruct what we can, box what we can't.** Types with `from_raw_parts`/`into_raw_parts` (`Vec`, `String`, `Box`, slices) get converted through their stable APIs. Types without such escape hatches (trait objects, closures, opaque iterators) get boxed behind a hand-rolled `#[repr(C)]` vtable. This is a clear, simple rule that covers the common cases with zero overhead.
+
+**Complexity is opt-in.** Start with native types and automatic conversions. Need trait objects across the boundary? Box them. Hate the boxing? Use explicit `#[repr(C)]` types or reach for `abi_stable`—nothing's stopping you. But you shouldn't need to by default.
+
+**`no_std` works.** No global registries, no allocator requirement for the core machinery. The conversion logic is just struct manipulation.
+
+## Roadmap
+
+This repo is a proof-of-concept. The plan is a `#[stable_abi]` proc macro:
+
+```rust
+#[stable_abi]
+pub trait Summer {
+    fn sum(&mut self, values: Vec<i32>) -> i32;
+}
+
+#[stable_abi]
+impl Summer for MySummer {
+    fn sum(&mut self, values: Vec<i32>) -> i32 {
+        values.into_iter().sum()
+    }
+}
+```
+
+The macro generates:
+- A `#[repr(C)]` vtable struct with `extern "C"` function pointers
+- Wrapper functions handling ABI conversions at the boundary
+- Static vtable instances for each impl
+
+Standard library types get hand-crafted `#[repr(C)]` equivalents with niche optimizations preserved where possible (`Option<NonNull<T>>` stays pointer-sized). User types with `#[stable_abi]` become `#[repr(C)]` directly—zero cost by construction, no conversion needed.
