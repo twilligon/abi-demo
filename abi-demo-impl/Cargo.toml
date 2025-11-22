@@ -1,0 +1,11 @@
+[package]
+name = "abi-demo-impl"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+abi-demo-lib = { path = "../abi-demo-lib" }
+
+[lib]
+crate-type = ["cdylib"]
