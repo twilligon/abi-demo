@@ -45,8 +45,8 @@ pub struct __SummerVtable {
     pub __Summer_sum: unsafe extern "C-unwind" fn(*mut (), VecAbi<i32>) -> i32,
 }
 
-extern "C-unwind" {
-    fn __doubled(v: VecAbi<i32>) -> VecAbi<i32>;
+unsafe extern "C-unwind" {
+    unsafe fn __doubled(v: VecAbi<i32>) -> VecAbi<i32>;
 }
 
 pub fn doubled(v: Vec<i32>) -> Vec<i32> {

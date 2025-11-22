@@ -2,20 +2,20 @@
 
 use abi_demo_lib::{__SummerVtable, doubled, vec_to_abi};
 use std::{
-    alloc::{dealloc, Layout},
+    alloc::{Layout, dealloc},
     ptr,
 };
 
 #[link(name = "abi_demo_impl")]
-extern "C-unwind" {
-    fn get_rust_vtable1() -> *const __SummerVtable;
-    fn get_our_vtable1() -> *const __SummerVtable;
-    fn get_rust_vtable2() -> *const __SummerVtable;
-    fn get_our_vtable2() -> *const __SummerVtable;
-    fn get_doubled_addr() -> *const ();
-    fn get_doubled_abi_addr() -> *const ();
-    fn get_summer1() -> *mut ();
-    fn get_summer2() -> *mut ();
+unsafe extern "C-unwind" {
+    unsafe fn get_rust_vtable1() -> *const __SummerVtable;
+    unsafe fn get_our_vtable1() -> *const __SummerVtable;
+    unsafe fn get_rust_vtable2() -> *const __SummerVtable;
+    unsafe fn get_our_vtable2() -> *const __SummerVtable;
+    unsafe fn get_doubled_addr() -> *const ();
+    unsafe fn get_doubled_abi_addr() -> *const ();
+    unsafe fn get_summer1() -> *mut ();
+    unsafe fn get_summer2() -> *mut ();
 }
 
 fn main() {
@@ -83,7 +83,8 @@ fn main() {
         ) || get_doubled_addr() != get_doubled_abi_addr()
         {
             eprintln!(
-                "\nbuild abi-demo-impl with ICF=all for identical __Summer_sum, drop, doubled"
+                "\nbuild abi-demo-impl in release mode with ICF=all for \
+                identical __Summer_sum, drop, doubled"
             );
         }
     }

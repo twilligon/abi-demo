@@ -2,7 +2,7 @@
 
 use std::{mem, ptr};
 
-use abi_demo_lib::{abi_to_vec, vec_to_abi, Summer, VecAbi, __SummerVtable};
+use abi_demo_lib::{__SummerVtable, Summer, VecAbi, abi_to_vec, vec_to_abi};
 
 struct Summer1;
 
@@ -12,12 +12,12 @@ impl Summer for Summer1 {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_summer1() -> *mut () {
     Box::into_raw(Box::new(Summer1)) as *mut ()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_summer2() -> *mut () {
     Box::into_raw(Box::new(Summer2 { grand_total: 0 })) as *mut ()
 }
@@ -44,22 +44,24 @@ impl Drop for Summer2 {
 }
 
 #[allow(non_snake_case)]
-extern "C-unwind" fn __Summer_sum<T: Summer>(ptr: *mut (), v: VecAbi<i32>) -> i32 {
+unsafe extern "C-unwind" fn __Summer_sum<T: Summer>(ptr: *mut (), v: VecAbi<i32>) -> i32 {
     unsafe { &mut *(ptr as *mut T) }.sum(abi_to_vec(v))
 }
 
 #[allow(non_snake_case)]
 unsafe extern "C-unwind" fn __Drop_drop<T>(ptr: *mut ()) {
-    ptr::drop_in_place(ptr as *mut T);
+    unsafe {
+        ptr::drop_in_place(ptr as *mut T);
+    }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_rust_vtable1() -> *const __SummerVtable {
     let summer: &dyn Summer = &Summer1;
     unsafe { mem::transmute::<&dyn Summer, (*const (), *const __SummerVtable)>(summer) }.1
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_our_vtable1() -> *const __SummerVtable {
     &const {
         __SummerVtable {
@@ -75,14 +77,14 @@ pub extern "C-unwind" fn get_our_vtable1() -> *const __SummerVtable {
     } as *const __SummerVtable
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_rust_vtable2() -> *const __SummerVtable {
     let mut summer_val = Summer2 { grand_total: 0 };
     let summer: &mut dyn Summer = &mut summer_val;
     unsafe { mem::transmute::<&mut dyn Summer, (*mut (), *const __SummerVtable)>(summer) }.1
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_our_vtable2() -> *const __SummerVtable {
     &const {
         __SummerVtable {
@@ -102,17 +104,17 @@ fn doubled(v: Vec<i32>) -> Vec<i32> {
     v.into_iter().map(|x| x * 2).collect()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn __doubled(v: VecAbi<i32>) -> VecAbi<i32> {
     vec_to_abi(doubled(abi_to_vec(v)))
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_doubled_addr() -> *const () {
     doubled as *const ()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C-unwind" fn get_doubled_abi_addr() -> *const () {
     __doubled as *const ()
 }
